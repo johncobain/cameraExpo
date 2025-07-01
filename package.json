@@ -11,12 +11,14 @@
   "dependencies": {
     "@react-native-vector-icons/fontawesome": "^12.0.1",
     "expo": "~53.0.15",
+    "expo-audio": "^0.4.7",
+    "expo-av": "~15.1.7",
+    "expo-media-library": "~17.1.7",
     "expo-status-bar": "~2.2.3",
+    "expo-video": "^2.2.2",
     "react": "19.0.0",
     "react-native": "0.79.4",
-    "react-native-vision-camera": "^4.7.0",
-    "expo-av": "~15.1.7",
-    "expo-media-library": "~17.1.7"
+    "react-native-vision-camera": "^4.7.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

@@ -17,7 +17,7 @@ import {
   useMicrophonePermission,
 } from "react-native-vision-camera";
 
-import { Video, ResizeMode } from "expo-av";
+import { VideoView, useVideoPlayer } from "expo-video";
 import * as MediaLibrary from "expo-media-library";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
@@ -41,6 +41,17 @@ export default function App() {
 
   const cameraRef = useRef<Camera>(null);
 
+  // Create video player for expo-video
+  const player = useVideoPlayer(videoUri || "");
+
+  useEffect(() => {
+    if (player && videoUri) {
+      player.replace(videoUri);
+      player.loop = true;
+      player.play();
+    }
+  }, [videoUri, player]);
+
   useEffect(() => {
     (async () => {
       const status = await requestPermission();
@@ -63,16 +74,26 @@ export default function App() {
 
   const startRecording = () => {
     if (!cameraRef.current || !device) return;
+
+    // Clear any existing state before starting new recording
+    setVideoUri(null);
+    setPhotoUri(null);
+    setModalVisible(false);
     setIsRecording(true);
 
     cameraRef.current.startRecording({
       onRecordingFinished: (video) => {
         setIsRecording(false);
+        console.log("Video recorded:", video.path);
+        console.log("Full video object:", video);
+
+        // Use the path directly without file:// prefix for expo-av
         setVideoUri(video.path);
         setModalVisible(true);
       },
       onRecordingError: (error) => {
         console.error("Recording error:", error);
+        setIsRecording(false);
       },
     });
   };
@@ -84,26 +105,42 @@ export default function App() {
     }
   };
 
-  const handleSaveVideo = async () => {
-    if (videoUri) {
+  const handleSaveMedia = async () => {
+    const uri = videoUri || photoUri;
+    if (uri) {
       try {
-        await MediaLibrary.createAssetAsync(videoUri);
-        console.log("Video saved to library");
+        // Remove file:// prefix for MediaLibrary if present
+        const cleanUri = uri.startsWith("file://")
+          ? uri.replace("file://", "")
+          : uri;
+        await MediaLibrary.createAssetAsync(cleanUri);
+        console.log("Media saved to library");
         setModalVisible(false);
         setVideoUri(null);
+        setPhotoUri(null);
       } catch (error) {
-        console.log("Error saving video:", error);
+        console.log("Error saving media:", error);
       }
     }
   };
 
   const takePicture = async () => {
     if (cameraRef.current) {
+      // Clear any existing state before taking new picture
+      setVideoUri(null);
+      setPhotoUri(null);
+      setModalVisible(false);
+
       const photo = await cameraRef.current.takePhoto();
-      setPhotoUri(photo.path);
-      setModalVisible(true);
-      setVideoUri(null); // Clear video URI if a photo is taken
       console.log("Photo taken:", photo.path);
+      console.log("Full photo object:", photo);
+
+      // Format the URI properly for React Native Image component
+      const photoUri = photo.path.startsWith("file://")
+        ? photo.path
+        : `file://${photo.path}`;
+      setPhotoUri(photoUri);
+      setModalVisible(true);
     }
   };
 
@@ -199,24 +236,39 @@ export default function App() {
           onRequestClose={hangleCloseModal}
         >
           <View style={styles.videoContainer}>
-            {videoUri && (
-              <Video
-                source={{ uri: videoUri }}
-                rate={1.0}
-                volume={1.0}
-                isMuted={false}
-                shouldPlay
-                isLooping
-                resizeMode={ResizeMode.COVER}
-                style={{ width: screenWidth, height: screenHeight }}
-              />
+            {videoUri && !photoUri && (
+              <>
+                {console.log(
+                  "Modal state - videoUri:",
+                  videoUri,
+                  "photoUri:",
+                  photoUri
+                )}
+                {console.log("Rendering video with URI:", videoUri)}
+                <VideoView
+                  style={{ width: screenWidth, height: screenHeight }}
+                  player={player}
+                  allowsFullscreen={false}
+                  allowsPictureInPicture={false}
+                  contentFit="cover"
+                />
+              </>
             )}
-            {photoUri && (
-              <Image
-                source={{ uri: photoUri }}
-                resizeMode={ResizeMode.COVER}
-                style={{ width: 300, height: 300, backgroundColor: "#000" }}
-              />
+            {photoUri && !videoUri && (
+              <>
+                {console.log("Rendering photo with URI:", photoUri)}
+                <Image
+                  source={{ uri: photoUri }}
+                  resizeMode="cover"
+                  style={{
+                    width: screenWidth,
+                    height: screenHeight,
+                    backgroundColor: "#000",
+                  }}
+                  onError={(error) => console.log("Image load error:", error)}
+                  onLoad={() => console.log("Image loaded successfully")}
+                />
+              </>
             )}
 
             <View style={styles.buttonContainer}>
@@ -226,7 +278,7 @@ export default function App() {
               >
                 <Text style={{ color: "#000" }}>Fechar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.button} onPress={handleSaveVideo}>
+              <TouchableOpacity style={styles.button} onPress={handleSaveMedia}>
                 <Text style={{ color: "#000" }}>Salvar</Text>
               </TouchableOpacity>
             </View>
